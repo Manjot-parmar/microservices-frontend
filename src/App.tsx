@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Users, Save, MessageSquare, Calendar, Activity, Server, ShieldAlert, Phone, Power } from "lucide-react";
 
 // --- CONFIGURATION ---
-const REGISTRY_API = "https://s0-registry.onrender.com"; 
+const REGISTRY_API = "https://s0-registry.onrender.com";
 
 // --- TYPES ---
 type Role = "student" | "counselor" | "admin";
@@ -292,7 +292,7 @@ const ServiceCounseling = ({ isActive, onToggle, onClose }: any) => {
 };
 
 export default function App() {
-  const [user, setUser] = useState("Student A");
+  const [user] = useState("Student A"); // REMOVED setUser
   const [role, setRole] = useState<Role>("student");
   const [activeId, setActiveId] = useState<ServiceId | null>(null);
   const [registry, setRegistry] = useState<any>({});
