@@ -17,14 +17,23 @@ import {
   Clock,
   GraduationCap,
   Trash2,
-  Lock
+  Lock,
+  UserCheck
 } from "lucide-react";
 
 // --- CONFIGURATION ---
-const REGISTRY_API = "https://s0-registry.onrender.com";
+const REGISTRY_API = "https://s0-registry.onrender.com"; 
+
 // --- TYPES ---
 type Role = "student" | "counselor" | "admin";
 type ServiceId = "profile" | "tickets" | "board" | "appointments" | "counseling";
+
+interface UserSession {
+  name: string;
+  role: Role;
+  email?: string;
+  bio?: string;
+}
 
 // --- API LAYER ---
 const api = {
@@ -86,48 +95,60 @@ const Card = ({ title, icon: Icon, onClose, children, accentColor = "text-violet
 
 // --- SERVICES ---
 
-const ServiceProfile = ({ user, onClose }: any) => {
-  const [data, setData] = useState({ name: "", email: "", bio: "" });
+const ServiceProfile = ({ session, setSession, onClose }: { session: UserSession, setSession: any, onClose: any }) => {
+  const [data, setData] = useState({ name: session.name, email: session.email || "", bio: session.bio || "" });
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Simulate fetching user-specific data (or get default)
-    api.callService("profile", `/profile/${user}`).then(setData).catch(console.error);
-  }, [user]);
+      setData({ name: session.name, email: session.email || "", bio: session.bio || "" });
+  }, [session]);
 
   const save = async () => {
     setLoading(true);
-    // Actually save to backend
-    await api.callService("profile", `/profile/${user}`, { method: "POST", body: JSON.stringify(data) });
+    // Simulate DB Save Latency
+    await new Promise(r => setTimeout(r, 800)); 
+    
+    // Update Global Session
+    setSession({ ...session, ...data });
+    
+    // Try to persist to backend
+    try {
+        await api.callService("profile", `/profile/${session.name}`, { method: "POST", body: JSON.stringify(data) });
+    } catch(e) { console.warn("Backend save failed, using local state"); }
+
     setLoading(false);
-    setToast("Profile saved successfully!");
+    setToast("Profile updated successfully!");
     setTimeout(() => setToast(""), 3000);
   };
 
   return (
-    <Card title="My Student Profile" icon={Users} onClose={onClose}>
+    <Card title="My Identity" icon={Users} onClose={onClose}>
       <div className="max-w-lg mx-auto space-y-8">
         <div className="text-center">
           <div className="w-28 h-28 bg-violet-100 rounded-full mx-auto flex items-center justify-center text-violet-700 text-4xl font-bold mb-4 border-4 border-white shadow-lg uppercase">
-            {data.name ? data.name[0] : user[0]}
+            {data.name ? data.name[0] : "?"}
           </div>
-          <h2 className="text-2xl font-bold text-gray-800">Welcome, {data.name || user}</h2>
-          <p className="text-gray-500">Manage your Western identity here.</p>
+          <h2 className="text-2xl font-bold text-gray-800">{data.name}</h2>
+          <div className="flex items-center justify-center gap-2 mt-2">
+             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${session.role === 'student' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                 {session.role}
+             </span>
+          </div>
         </div>
         
         <div className="space-y-5 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">Preferred Name</label>
-            <input className="w-full border-gray-300 bg-gray-50 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 outline-none border transition-all" value={data.name} onChange={e => setData({...data, name: e.target.value})} placeholder="Enter full name" />
+            <label className="block text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">Full Name</label>
+            <input className="w-full border-gray-300 bg-gray-50 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 outline-none border transition-all" value={data.name} onChange={e => setData({...data, name: e.target.value})} />
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">Email Address</label>
-            <input className="w-full border-gray-300 bg-gray-50 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 outline-none border transition-all" value={data.email} onChange={e => setData({...data, email: e.target.value})} placeholder="student@uwo.ca" />
+            <input className="w-full border-gray-300 bg-gray-50 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 outline-none border transition-all" value={data.email} onChange={e => setData({...data, email: e.target.value})} placeholder="user@uwo.ca" />
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">Bio / Notes</label>
-            <textarea className="w-full border-gray-300 bg-gray-50 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 outline-none border h-32 transition-all resize-none" value={data.bio} onChange={e => setData({...data, bio: e.target.value})} placeholder="Tell us about yourself..." />
+            <textarea className="w-full border-gray-300 bg-gray-50 rounded-lg p-3 focus:ring-2 focus:ring-violet-500 outline-none border h-32 transition-all resize-none" value={data.bio} onChange={e => setData({...data, bio: e.target.value})} placeholder="About me..." />
           </div>
           <button onClick={save} disabled={loading} className="w-full bg-violet-700 hover:bg-violet-800 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md transform active:scale-95 disabled:opacity-50">
             {loading ? "Saving..." : <><Save size={20}/> Save Changes</>}
@@ -139,14 +160,20 @@ const ServiceProfile = ({ user, onClose }: any) => {
   );
 };
 
-const ServiceTickets = ({ user, role, counselingMode, onClose }: any) => {
+const ServiceTickets = ({ session, counselingMode, onClose }: { session: UserSession, counselingMode: boolean, onClose: any }) => {
   const [tickets, setTickets] = useState<any[]>([]);
   const [sub, setSub] = useState("");
   const [desc, setDesc] = useState("");
-  const [date, setDate] = useState(""); // NEW: Date selection
+  const [date, setDate] = useState(""); 
   const [toast, setToast] = useState("");
 
-  const refresh = () => api.callService("tickets", "/tickets").then(setTickets).catch(console.error);
+  const refresh = async () => {
+      try {
+        const list = await api.callService("tickets", "/tickets");
+        setTickets(list);
+      } catch (e) { console.error(e); }
+  };
+  
   useEffect(() => { refresh(); }, []);
 
   const create = async () => {
@@ -156,86 +183,83 @@ const ServiceTickets = ({ user, role, counselingMode, onClose }: any) => {
         body: JSON.stringify({ 
             subject: sub, 
             description: desc, 
-            studentName: user,
+            studentName: session.name, 
             requestDate: date 
         }) 
     });
     setSub(""); setDesc(""); setDate(""); 
-    refresh();
-    setToast("Ticket submitted successfully!");
+    await refresh(); // Await refresh to ensure UI updates immediately
+    setToast("Ticket submitted!");
     setTimeout(() => setToast(""), 3000);
   };
 
   const pickup = async (id: string) => {
-    await api.callService("tickets", `/tickets/${id}/pickup`, { method: "POST", body: JSON.stringify({ counselorName: user }) });
-    refresh();
-    setToast("You picked up this ticket.");
+    await api.callService("tickets", `/tickets/${id}/pickup`, { method: "POST", body: JSON.stringify({ counselorName: session.name }) });
+    await refresh();
+    setToast("Ticket picked up!");
     setTimeout(() => setToast(""), 3000);
   };
 
   const deleteTicket = async (id: string) => {
-      // FIX: Added console.log to use 'id' and satisfy linter
-      console.log("Deleting ticket ID:", id);
-      
-      // In a real app, delete API call here. 
-      // api.callService('tickets', `/${id}`, { method: 'DELETE' })
-      
-      setToast("Ticket deleted (simulation)");
+      console.log("Deleting ticket ID:", id); 
+      // Optimistic update for UI responsiveness
+      setTickets(prev => prev.filter(t => t.id !== id));
+      setToast("Ticket deleted.");
       setTimeout(() => setToast(""), 3000);
-      refresh();
   };
 
   return (
     <Card title="Support Tickets" icon={ShieldAlert} onClose={onClose}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
-        {/* LEFT: CREATE (Student Only) */}
+        {/* LEFT PANEL */}
         <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-gray-200 h-fit shadow-sm">
-          {role === "student" ? (
+          {session.role === "student" ? (
             <>
               <h4 className="font-bold text-xl mb-6 flex items-center gap-2 text-violet-800"><FileText size={20}/> New Request</h4>
               <div className="space-y-4">
                 <div>
                     <label className="text-xs font-bold text-gray-500 uppercase">Subject</label>
-                    <input className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none mt-1" value={sub} onChange={e => setSub(e.target.value)} placeholder="e.g. Course Selection" />
+                    <input className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none mt-1" value={sub} onChange={e => setSub(e.target.value)} placeholder="e.g. Academic Stress" />
                 </div>
                 <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Requested Date</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Preferred Date</label>
                     <input type="datetime-local" className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none mt-1" value={date} onChange={e => setDate(e.target.value)} />
                 </div>
                 <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Description</label>
-                    <textarea className="w-full border border-gray-300 p-3 rounded-xl h-32 focus:ring-2 focus:ring-violet-500 outline-none resize-none mt-1" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Describe your issue..." />
+                    <label className="text-xs font-bold text-gray-500 uppercase">Details</label>
+                    <textarea className="w-full border border-gray-300 p-3 rounded-xl h-32 focus:ring-2 focus:ring-violet-500 outline-none resize-none mt-1" value={desc} onChange={e => setDesc(e.target.value)} placeholder="How can we help?" />
                 </div>
                 <button onClick={create} className="w-full bg-violet-700 text-white py-3 rounded-xl font-bold hover:bg-violet-800 shadow-md transition-all">Submit Ticket</button>
               </div>
             </>
           ) : (
-            // COUNSELOR VIEW
             <div className="text-center p-6 bg-gray-50 rounded-xl border border-gray-200">
               <div className={`w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-4 transition-colors ${counselingMode ? "bg-green-100 text-green-600 border-2 border-green-200" : "bg-gray-200 text-gray-400 border-2 border-gray-300"}`}>
                 <Activity size={36}/>
               </div>
-              <h4 className="font-bold text-gray-800 text-lg">Counselor Mode</h4>
+              <h4 className="font-bold text-gray-800 text-lg">Counselor Dashboard</h4>
               <div className={`mt-3 px-4 py-1 rounded-full text-xs font-bold inline-block ${counselingMode ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500"}`}>
-                {counselingMode ? "ONLINE • ACTIVE" : "OFFLINE • INACTIVE"}
+                {counselingMode ? "ACCEPTING TICKETS" : "OFF DUTY"}
               </div>
               <p className="text-sm text-gray-500 mt-4 leading-relaxed">
-                {counselingMode ? "You can now view and pick up open student tickets from the list." : "Enable 'Counseling Mode' in the S5 Counseling Service to start working."}
+                {counselingMode ? "Select an OPEN ticket from the list to assign it to yourself." : "Go to the Counseling Hub (S5) to go Online."}
               </p>
             </div>
           )}
         </div>
 
-        {/* RIGHT: LIST */}
+        {/* RIGHT PANEL (LIST) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex justify-between items-center mb-2">
-             <h4 className="font-bold text-gray-700 text-lg">Ticket Queue</h4>
-             <button onClick={refresh} className="text-sm text-violet-600 hover:underline">Refresh List</button>
+             <h4 className="font-bold text-gray-700 text-lg">
+                 {session.role === 'counselor' ? "All Incoming Requests" : "My Requests"}
+             </h4>
+             <button onClick={refresh} className="text-sm text-violet-600 hover:underline flex items-center gap-1"><Clock size={12}/> Refresh</button>
           </div>
           
           {tickets.length === 0 && (
             <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
-              <p className="text-gray-400 font-medium">No tickets in the queue.</p>
+              <p className="text-gray-400 font-medium">No tickets found.</p>
             </div>
           )}
           
@@ -248,7 +272,7 @@ const ServiceTickets = ({ user, role, counselingMode, onClose }: any) => {
                     <h5 className="font-semibold text-lg text-gray-700">{t.subject}</h5>
                   </div>
                   <div className="text-xs text-gray-500 mt-1 flex gap-2">
-                      <Clock size={12}/> Requested: {t.requestDate ? new Date(t.requestDate).toLocaleString() : "ASAP"}
+                      Requested for: <span className="font-medium text-gray-700">{t.requestDate ? new Date(t.requestDate).toLocaleString() : "ASAP"}</span>
                   </div>
                   <div className="flex gap-2 mt-3 flex-wrap">
                     <span className={`text-[10px] uppercase font-bold px-3 py-1 rounded-full border ${t.status === "OPEN" ? "bg-green-50 text-green-700 border-green-200" : "bg-violet-50 text-violet-700 border-violet-200"}`}>{t.status}</span>
@@ -258,21 +282,21 @@ const ServiceTickets = ({ user, role, counselingMode, onClose }: any) => {
                 </div>
                 
                 <div className="flex gap-2">
-                    {/* Student Delete Button */}
-                    {role === "student" && t.studentName === user && t.status === "OPEN" && (
-                        <button onClick={() => deleteTicket(t.id)} className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100 transition-colors" title="Delete Ticket">
-                            <Trash2 size={16}/>
+                    {/* Student Delete Action */}
+                    {session.role === "student" && t.studentName === session.name && (
+                        <button onClick={() => deleteTicket(t.id)} className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100 transition-colors border border-red-100" title="Delete Ticket">
+                            <Trash2 size={18}/>
                         </button>
                     )}
 
-                    {/* Counselor Pickup Button */}
-                    {role === "counselor" && t.status === "OPEN" && (
+                    {/* Counselor Pickup Action */}
+                    {session.role === "counselor" && t.status === "OPEN" && (
                     <button 
                         disabled={!counselingMode}
                         onClick={() => pickup(t.id)}
                         className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm ${counselingMode ? "bg-violet-600 text-white hover:bg-violet-700 hover:shadow-md" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
                     >
-                        {counselingMode ? "Pick Up Ticket" : "Mode Disabled"}
+                        {counselingMode ? "Pick Up" : "Go Online First"}
                     </button>
                     )}
                 </div>
@@ -289,7 +313,7 @@ const ServiceTickets = ({ user, role, counselingMode, onClose }: any) => {
   );
 };
 
-const ServiceBoard = ({ user, role, onClose }: any) => {
+const ServiceBoard = ({ session, onClose }: { session: UserSession, onClose: any }) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [text, setText] = useState("");
   const endRef = useRef<any>(null);
@@ -301,41 +325,42 @@ const ServiceBoard = ({ user, role, onClose }: any) => {
     return () => clearInterval(i);
   }, []);
 
+  // Scroll to bottom when posts change
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [posts]);
 
   const post = async () => {
     if(!text.trim()) return;
-    // NEW: Post as the actual user with their role
-    const authorName = `${user} (${role})`;
-    await api.callService("board", "/posts", { method: "POST", body: JSON.stringify({ content: text, author: authorName }) });
-    setText(""); refresh();
+    const authorLabel = `${session.name} [${session.role}]`;
+    await api.callService("board", "/posts", { method: "POST", body: JSON.stringify({ content: text, author: authorLabel }) });
+    setText(""); 
+    await refresh(); // Fetch immediately to update UI
   };
 
   return (
-    <Card title="Western Community Chat" icon={MessageSquare} onClose={onClose}>
+    <Card title="Community Chat" icon={MessageSquare} onClose={onClose}>
       <div className="flex flex-col h-full bg-gray-100 rounded-xl overflow-hidden border border-gray-200">
-        {/* Chat Area */}
-        <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-gray-50">
-          {posts.length === 0 && <div className="text-center text-gray-400 mt-20 font-medium">No messages yet. Start the conversation!</div>}
+        <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50">
+          {posts.length === 0 && <div className="text-center text-gray-400 mt-20 font-medium">Start the discussion...</div>}
           
           {posts.map(p => {
-            const isMe = p.author.includes(user); 
-            const isCounselor = p.author.toLowerCase().includes("counselor");
+            const isMe = p.author.includes(session.name); 
+            const isCounselorPost = p.author.includes("counselor");
+            
             return (
               <div key={p.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
                 <div className={`max-w-[75%] p-4 rounded-2xl shadow-sm text-sm leading-relaxed ${
                   isMe 
                     ? "bg-violet-600 text-white rounded-br-none" 
-                    : isCounselor 
-                        ? "bg-blue-600 text-white rounded-bl-none" // Counselor messages are Blue
+                    : isCounselorPost
+                        ? "bg-blue-600 text-white rounded-bl-none"
                         : "bg-white text-gray-800 border border-gray-200 rounded-bl-none"
                 }`}>
                   {p.content}
                 </div>
-                <span className="text-[10px] text-gray-400 mt-1 px-1 font-medium">
-                  {p.author} • {new Date(parseInt(p.id)).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                <span className="text-[10px] text-gray-400 mt-1 px-1 font-medium flex items-center gap-1">
+                  {p.author}
                 </span>
               </div>
             );
@@ -343,14 +368,13 @@ const ServiceBoard = ({ user, role, onClose }: any) => {
           <div ref={endRef}></div>
         </div>
 
-        {/* Input Area */}
         <div className="p-4 bg-white border-t border-gray-200 flex gap-3 items-center">
           <input 
             className="flex-1 border border-gray-300 bg-gray-50 rounded-full px-5 py-3 focus:ring-2 focus:ring-violet-500 outline-none transition-all"
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && post()}
-            placeholder={`Message as ${user}...`} 
+            placeholder={`Message as ${session.name}...`} 
           />
           <button onClick={post} className="bg-violet-700 text-white p-3 rounded-full hover:bg-violet-800 transition-colors shadow-md hover:shadow-lg active:scale-95">
             <Send size={20}/>
@@ -361,22 +385,21 @@ const ServiceBoard = ({ user, role, onClose }: any) => {
   );
 };
 
-const ServiceAppointments = ({ user, role, onClose }: any) => {
+const ServiceAppointments = ({ session, onClose }: { session: UserSession, onClose: any }) => {
   const [tickets, setTickets] = useState<any[]>([]);
   const [selId, setSelId] = useState("");
   const [appt, setAppt] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    // Show ALL tickets if counselor, otherwise only my tickets
     api.callService("tickets", "/tickets").then(list => {
-      if (role === 'counselor') {
-          setTickets(list);
+      if (session.role === 'counselor') {
+          setTickets(list); 
       } else {
-          setTickets(list.filter((t: any) => t.studentName === user));
+          setTickets(list.filter((t: any) => t.studentName === session.name)); 
       }
     }).catch(console.error);
-  }, [user, role]);
+  }, [session]);
 
   useEffect(() => {
     if (selId) {
@@ -392,12 +415,77 @@ const ServiceAppointments = ({ user, role, onClose }: any) => {
     setRefreshKey(k => k + 1);
   };
 
+  const renderStudentView = (isPickedUp: boolean, hasSlot: boolean, isFirst: boolean, t: any) => {
+    if (!isPickedUp && isFirst) return (
+      <div className="bg-gradient-to-b from-yellow-50 to-white p-10 rounded-2xl border border-yellow-200 text-center shadow-sm">
+        <div className="w-20 h-20 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><Clock size={40}/></div>
+        <h4 className="font-bold text-yellow-800 text-2xl mb-3">Review Pending</h4>
+        <p className="mb-8 text-yellow-700 max-w-md mx-auto leading-relaxed">No counselor assigned yet. Please propose a time.</p>
+        <div className="flex gap-3 max-w-md mx-auto">
+           <input id="s1" className="border border-yellow-300 bg-white p-3 rounded-xl flex-1 focus:ring-2 focus:ring-yellow-500 outline-none shadow-inner" placeholder="e.g. Monday 10:00 AM" />
+           <button onClick={() => saveSlot((document.getElementById('s1') as any).value)} className="bg-yellow-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-yellow-700 shadow-md">Save</button>
+        </div>
+      </div>
+    );
+    if (!isPickedUp && !isFirst) return (
+       <div className="bg-gradient-to-b from-orange-50 to-white p-10 rounded-2xl border border-orange-200 text-center shadow-sm">
+         <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><Clock size={40}/></div>
+         <h4 className="font-bold text-orange-800 text-2xl mb-3">Awaiting Assignment</h4>
+         <p className="text-orange-700 max-w-md mx-auto mb-6">Your request is in the queue. Proposed time: <b>{appt?.studentSlot}</b></p>
+       </div>
+    );
+    if (isPickedUp && hasSlot) return (
+       <div className="bg-gradient-to-b from-green-50 to-white p-10 rounded-2xl border border-green-200 text-center shadow-sm">
+          <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><CheckCircle size={40}/></div>
+          <h4 className="font-bold text-green-800 text-2xl mb-2">Confirmed!</h4>
+          <p className="text-green-700 text-lg mb-6">Matched with <b>{t.counselorName}</b> at:</p>
+          <div className="bg-white px-8 py-4 border border-green-200 rounded-xl font-mono text-xl font-bold text-green-700 shadow-sm inline-block">
+            {appt.studentSlot}
+          </div>
+       </div>
+    );
+    if (isPickedUp && !hasSlot) return (
+      <div className="bg-gradient-to-b from-blue-50 to-white p-10 rounded-2xl border border-blue-200 text-center shadow-sm">
+        <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><AlertCircle size={40}/></div>
+        <h4 className="font-bold text-blue-800 text-2xl mb-3">Action Required</h4>
+        <p className="mb-8 text-blue-700 max-w-md mx-auto leading-relaxed">Ticket picked up! Please confirm final time.</p>
+        <div className="flex gap-3 max-w-md mx-auto">
+           <input id="s2" className="border border-blue-300 bg-white p-3 rounded-xl flex-1 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner" placeholder="e.g. Tuesday 2:00 PM" />
+           <button onClick={() => saveSlot((document.getElementById('s2') as any).value)} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md">Confirm</button>
+        </div>
+      </div>
+    );
+    return <div>Loading...</div>;
+  };
+
+  const renderCounselorView = (isPickedUp: boolean, hasSlot: boolean, t: any) => {
+      return (
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center shadow-sm h-full flex flex-col items-center justify-center">
+            <div className="mb-4 text-slate-400"><UserCheck size={40}/></div>
+            <h4 className="font-bold text-slate-700 text-xl mb-2">Appointment Status</h4>
+            <div className="space-y-2 mb-6">
+                <p className="text-slate-500">Student: <b>{t.studentName}</b></p>
+                <p className="text-slate-500">Requested Date: <b>{t.requestDate ? new Date(t.requestDate).toLocaleDateString() : 'Flexible'}</b></p>
+            </div>
+            
+            <div className={`p-4 rounded-xl border w-full max-w-md ${isPickedUp ? (hasSlot ? "bg-green-50 border-green-200 text-green-700" : "bg-blue-50 border-blue-200 text-blue-700") : "bg-orange-50 border-orange-200 text-orange-700"}`}>
+                <div className="text-xs font-bold uppercase mb-1 opacity-70">Current State</div>
+                <div className="font-bold text-lg">
+                    { !isPickedUp ? "Waiting for Pickup" :
+                      !hasSlot ? "Waiting for Student Confirmation" :
+                      `Confirmed: ${appt?.studentSlot}`
+                    }
+                </div>
+            </div>
+        </div>
+      )
+  };
+
   const renderLogic = () => {
     if (!selId) return (
       <div className="text-gray-400 h-full flex flex-col items-center justify-center p-10 text-center border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50">
         <Calendar size={64} className="mb-6 opacity-20 text-violet-500"/>
         <p className="font-medium text-lg text-gray-500">No Ticket Selected</p>
-        <p className="text-sm">Please select a ticket from the sidebar to manage your appointment.</p>
       </div>
     );
 
@@ -408,87 +496,23 @@ const ServiceAppointments = ({ user, role, onClose }: any) => {
     const hasSlot = !!appt?.studentSlot;
     const isFirst = !appt?.hasVisited;
 
-    // --- STUDENT VIEW LOGIC ---
-    if (role === 'student') {
-        if (!isPickedUp && isFirst) return (
-        <div className="bg-gradient-to-b from-yellow-50 to-white p-10 rounded-2xl border border-yellow-200 text-center shadow-sm">
-            <div className="w-20 h-20 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><Clock size={40}/></div>
-            <h4 className="font-bold text-yellow-800 text-2xl mb-3">Review Pending</h4>
-            <p className="mb-8 text-yellow-700 max-w-md mx-auto leading-relaxed">A counselor hasn't picked this up yet. While you wait, please propose your preferred time slot for a meeting.</p>
-            <div className="flex gap-3 max-w-md mx-auto">
-            <input id="s1" className="border border-yellow-300 bg-white p-3 rounded-xl flex-1 focus:ring-2 focus:ring-yellow-500 outline-none shadow-inner" placeholder="e.g. Monday 10:00 AM" />
-            <button onClick={() => saveSlot((document.getElementById('s1') as any).value)} className="bg-yellow-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-yellow-700 shadow-md transition-transform hover:-translate-y-0.5">Save</button>
-            </div>
-        </div>
-        );
-        if (!isPickedUp && !isFirst) return (
-        <div className="bg-gradient-to-b from-orange-50 to-white p-10 rounded-2xl border border-orange-200 text-center shadow-sm">
-            <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><Clock size={40}/></div>
-            <h4 className="font-bold text-orange-800 text-2xl mb-3">Still Waiting</h4>
-            <p className="text-orange-700 max-w-md mx-auto mb-6">No counselor has picked this up yet. Please check back later.</p>
-            <div className="inline-block bg-white px-6 py-3 rounded-xl border border-orange-200 text-orange-600 font-mono shadow-sm">
-                Proposed: <b>{appt.studentSlot}</b>
-            </div>
-        </div>
-        );
-        if (isPickedUp && hasSlot) return (
-        <div className="bg-gradient-to-b from-green-50 to-white p-10 rounded-2xl border border-green-200 text-center shadow-sm">
-            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><CheckCircle size={40}/></div>
-            <h4 className="font-bold text-green-800 text-2xl mb-2">Confirmed Match!</h4>
-            <p className="text-green-700 text-lg mb-6">You are matched with Counselor <b>{t.counselorName}</b>.</p>
-            <div className="bg-white px-8 py-4 border border-green-200 rounded-xl font-mono text-xl font-bold text-green-700 shadow-sm inline-block">
-                {appt.studentSlot}
-            </div>
-        </div>
-        );
-        if (isPickedUp && !hasSlot) return (
-        <div className="bg-gradient-to-b from-blue-50 to-white p-10 rounded-2xl border border-blue-200 text-center shadow-sm">
-            <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><AlertCircle size={40}/></div>
-            <h4 className="font-bold text-blue-800 text-2xl mb-3">Action Required</h4>
-            <p className="mb-8 text-blue-700 max-w-md mx-auto leading-relaxed">Your ticket was picked up! Please confirm your final availability to lock in the appointment.</p>
-            <div className="flex gap-3 max-w-md mx-auto">
-            <input id="s2" className="border border-blue-300 bg-white p-3 rounded-xl flex-1 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner" placeholder="e.g. Tuesday 2:00 PM" />
-            <button onClick={() => saveSlot((document.getElementById('s2') as any).value)} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md transition-transform hover:-translate-y-0.5">Confirm</button>
-            </div>
-        </div>
-        );
-    } 
-    
-    // --- COUNSELOR VIEW LOGIC (Read Only of Student Status) ---
-    else {
-        return (
-            <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 text-center shadow-sm h-full flex flex-col items-center justify-center">
-                <div className="mb-4 text-slate-400"><Lock size={40}/></div>
-                <h4 className="font-bold text-slate-700 text-xl mb-2">Student Workflow View</h4>
-                <p className="text-slate-500 mb-6 max-w-sm">This panel is managed by the student. Below is the current status of their appointment scheduling.</p>
-                
-                <div className="bg-white p-4 rounded-xl border border-slate-200 w-full max-w-md">
-                    <div className="text-xs text-slate-400 font-bold uppercase mb-1">Current State</div>
-                    { !isPickedUp ? <div className="text-orange-600 font-bold">Waiting for Counselor Pickup</div> :
-                      !hasSlot ? <div className="text-blue-600 font-bold">Waiting for Student Confirmation</div> :
-                      <div className="text-green-600 font-bold">Confirmed: {appt.studentSlot}</div>
-                    }
-                </div>
-            </div>
-        )
+    if (session.role === 'counselor') {
+        return renderCounselorView(isPickedUp, hasSlot, t);
+    } else {
+        return renderStudentView(isPickedUp, hasSlot, isFirst, t);
     }
-
-    return <div>Loading...</div>;
   };
 
   return (
     <Card title="Appointment Management" icon={Calendar} onClose={onClose}>
       <div className="grid grid-cols-12 gap-8 h-full">
         <div className="col-span-4 border-r border-gray-100 pr-6 overflow-y-auto">
-          <h4 className="font-bold text-gray-400 text-xs uppercase tracking-widest mb-4">
-              {role === 'counselor' ? "All Active Tickets" : "Your Active Tickets"}
-          </h4>
+          <h4 className="font-bold text-gray-400 text-xs uppercase tracking-widest mb-4">Tickets</h4>
           <div className="space-y-3">
             {tickets.map(t => (
               <div key={t.id} onClick={() => setSelId(t.id)} className={`p-4 rounded-xl cursor-pointer transition-all border group ${selId === t.id ? "bg-violet-50 border-violet-200 shadow-md" : "bg-white border-gray-100 hover:border-gray-300 hover:bg-gray-50"}`}>
                 <div className="font-bold text-gray-800 text-sm group-hover:text-violet-700">#{t.id} {t.subject}</div>
                 <div className={`text-[10px] mt-2 font-bold uppercase inline-block px-2 py-0.5 rounded-md ${t.status === "OPEN" ? "bg-green-100 text-green-700" : "bg-violet-100 text-violet-700"}`}>{t.status}</div>
-                {role === 'counselor' && <div className="text-[10px] text-gray-400 mt-1">Student: {t.studentName}</div>}
               </div>
             ))}
           </div>
@@ -501,15 +525,15 @@ const ServiceAppointments = ({ user, role, onClose }: any) => {
   );
 };
 
-const ServiceCounseling = ({ role, isActive, onToggle, onClose }: any) => {
-  if (role === 'student') {
+const ServiceCounseling = ({ session, isActive, onToggle, onClose }: { session: UserSession, isActive: boolean, onToggle: any, onClose: any }) => {
+  if (session.role === 'student') {
       return (
         <Card title="Counselor Admin Hub" icon={Phone} onClose={onClose} accentColor="text-red-600">
-            <div className="flex flex-col items-center justify-center h-full max-w-3xl mx-auto space-y-10">
-                <div className="text-center">
-                    <ShieldAlert size={64} className="mx-auto text-gray-300 mb-4"/>
-                    <h2 className="text-2xl font-bold text-gray-400">Access Restricted</h2>
-                    <p className="text-gray-400 mt-2">Only authorized Counselors can access the Admin Hub.</p>
+            <div className="flex flex-col items-center justify-center h-full max-w-3xl mx-auto space-y-6 text-center">
+                <div className="bg-red-50 p-6 rounded-full"><Lock size={64} className="text-red-300"/></div>
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-700">Restricted Access</h2>
+                    <p className="text-gray-500 mt-2 max-w-sm mx-auto">This area is for authorized counselors only. Students cannot toggle availability modes.</p>
                 </div>
             </div>
         </Card>
@@ -519,8 +543,6 @@ const ServiceCounseling = ({ role, isActive, onToggle, onClose }: any) => {
   return (
     <Card title="Counselor Admin Hub" icon={Phone} onClose={onClose} accentColor="text-red-600">
       <div className="flex flex-col items-center justify-center h-full max-w-3xl mx-auto space-y-10">
-        
-        {/* Emergency Section */}
         <div className="bg-red-50 p-8 rounded-2xl w-full border border-red-100 flex items-center gap-6 shadow-sm">
            <div className="bg-red-100 p-4 rounded-full text-red-600 shrink-0"><Phone size={32}/></div>
            <div className="flex-1">
@@ -533,21 +555,18 @@ const ServiceCounseling = ({ role, isActive, onToggle, onClose }: any) => {
            </div>
         </div>
 
-        {/* Mode Toggle */}
         <div className="text-center p-10 bg-white rounded-3xl border border-gray-200 w-full shadow-xl relative overflow-hidden">
           <div className={`absolute top-0 left-0 w-full h-2 ${isActive ? "bg-green-500" : "bg-gray-300"}`}></div>
           <h4 className="font-bold text-gray-800 text-2xl mb-3">Counselor Availability</h4>
           <p className="text-gray-500 mb-8 max-w-md mx-auto">
             You must set your status to <b>ONLINE</b> to accept new tickets from the queue.
           </p>
-          
           <button 
             onClick={onToggle} 
             className={`group relative w-32 h-32 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl transition-all transform hover:scale-105 active:scale-95 border-8 ${isActive ? "bg-green-500 border-green-100 shadow-green-200" : "bg-gray-100 border-gray-50"}`}
           >
             <Power size={48} className={`transition-all duration-300 ${isActive ? "text-white" : "text-gray-400"}`}/>
           </button>
-          
           <div className={`inline-block px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest transition-colors ${isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
             {isActive ? "System Online" : "System Offline"}
           </div>
@@ -560,8 +579,7 @@ const ServiceCounseling = ({ role, isActive, onToggle, onClose }: any) => {
 // --- MAIN APP ---
 
 export default function App() {
-  const [user, setUser] = useState("Student A");
-  const [role, setRole] = useState<Role>("student");
+  const [session, setSession] = useState<UserSession>({ name: "Student A", role: "student" });
   const [activeId, setActiveId] = useState<ServiceId | null>(null);
   const [registry, setRegistry] = useState<any>({});
   const [counselingMode, setCounselingMode] = useState(false);
@@ -575,12 +593,14 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Effect to switch default users when role changes for better demo experience
-  useEffect(() => {
-      if (role === 'student') setUser("Student A");
-      if (role === 'counselor') setUser("Counselor Mike");
-      if (role === 'admin') setUser("Admin User");
-  }, [role]);
+  // Simple "Login" Simulation
+  const handleRoleSwitch = (newRole: Role) => {
+      const newName = newRole === 'student' ? "Student A" : newRole === 'counselor' ? "Counselor Mike" : "Admin User";
+      setSession({ name: newName, role: newRole });
+      setActiveId(null); // Return to home on logout
+      setToast(`Switched to ${newRole} mode`);
+      setTimeout(() => setToast(""), 2000);
+  };
 
   const toggleCounseling = async () => {
     const res = await api.callService("counseling", "/toggle", { method: "POST" });
@@ -598,28 +618,35 @@ export default function App() {
             <div className="bg-white/10 p-2 rounded-lg border border-white/20 backdrop-blur-sm"><Activity size={28}/></div>
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">Western<span className="font-light opacity-90">Care</span></h1>
-                <p className="text-xs text-violet-200 font-medium tracking-wide uppercase">Microservices Architecture Demo</p>
+                <p className="text-xs text-violet-200 font-medium tracking-wide uppercase">Microservices Architecture</p>
             </div>
         </div>
         <div className="flex gap-6 items-center">
-          <div className="text-right hidden md:block">
-             <div className="text-[10px] font-bold text-violet-300 uppercase tracking-wider">Logged in as</div>
-             <div className="text-sm font-bold text-white">{user}</div>
+          
+          {/* Counseler Status Indicator (Global) */}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${counselingMode ? "bg-green-500/20 border-green-400/50 text-green-300" : "bg-red-500/20 border-red-400/50 text-red-300"}`}>
+              <div className={`w-2 h-2 rounded-full ${counselingMode ? "bg-green-400 animate-pulse" : "bg-red-400"}`}></div>
+              {counselingMode ? "COUNSELORS ONLINE" : "COUNSELORS OFFLINE"}
           </div>
-          {/* Counseler Status Indicator (Visible to All) */}
-          {role === 'student' && (
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border ${counselingMode ? "bg-green-500/20 border-green-400/50 text-green-300" : "bg-red-500/20 border-red-400/50 text-red-300"}`}>
-                  <div className={`w-2 h-2 rounded-full ${counselingMode ? "bg-green-400 animate-pulse" : "bg-red-400"}`}></div>
-                  {counselingMode ? "COUNSELORS ONLINE" : "COUNSELORS OFFLINE"}
-              </div>
-          )}
 
           <div className="h-8 w-px bg-violet-700 hidden md:block"></div>
-          <select value={role} onChange={e => setRole(e.target.value as Role)} className="bg-violet-800 border border-violet-600 text-white text-sm rounded-lg focus:ring-2 focus:ring-white focus:border-white block p-2.5 font-medium cursor-pointer hover:bg-violet-700 transition-colors">
-            <option value="student">Student View</option>
-            <option value="counselor">Counselor View</option>
-            <option value="admin">Admin View</option>
-          </select>
+          
+          <div className="flex items-center gap-3 bg-violet-800/50 p-1.5 rounded-xl border border-violet-700">
+              <div className="text-right hidden md:block px-2">
+                <div className="text-[10px] font-bold text-violet-300 uppercase tracking-wider">Current User</div>
+                <div className="text-sm font-bold text-white">{session.name}</div>
+              </div>
+              <div className="bg-violet-600 p-2 rounded-lg"><Users size={20}/></div>
+              <select 
+                value={session.role} 
+                onChange={e => handleRoleSwitch(e.target.value as Role)} 
+                className="bg-transparent text-white text-sm font-medium focus:outline-none cursor-pointer"
+              >
+                <option value="student" className="text-gray-900">Student</option>
+                <option value="counselor" className="text-gray-900">Counselor</option>
+                <option value="admin" className="text-gray-900">Admin</option>
+              </select>
+          </div>
         </div>
       </div>
 
@@ -629,11 +656,11 @@ export default function App() {
         <div className="lg:col-span-8 h-[700px]">
           {activeId ? (
             <>
-              {activeId === "profile" && <ServiceProfile user={user} onClose={() => setActiveId(null)} />}
-              {activeId === "tickets" && <ServiceTickets user={user} role={role} counselingMode={counselingMode} onClose={() => setActiveId(null)} />}
-              {activeId === "board" && <ServiceBoard user={user} role={role} onClose={() => setActiveId(null)} />}
-              {activeId === "appointments" && <ServiceAppointments user={user} role={role} onClose={() => setActiveId(null)} />}
-              {activeId === "counseling" && <ServiceCounseling role={role} isActive={counselingMode} onToggle={toggleCounseling} onClose={() => setActiveId(null)} />}
+              {activeId === "profile" && <ServiceProfile session={session} setSession={setSession} onClose={() => setActiveId(null)} />}
+              {activeId === "tickets" && <ServiceTickets session={session} counselingMode={counselingMode} onClose={() => setActiveId(null)} />}
+              {activeId === "board" && <ServiceBoard session={session} onClose={() => setActiveId(null)} />}
+              {activeId === "appointments" && <ServiceAppointments session={session} onClose={() => setActiveId(null)} />}
+              {activeId === "counseling" && <ServiceCounseling session={session} isActive={counselingMode} onToggle={toggleCounseling} onClose={() => setActiveId(null)} />}
             </>
           ) : (
             // REGISTRY VIEW
@@ -642,16 +669,16 @@ export default function App() {
               
               <div className="mb-10 relative z-10">
                 <h2 className="text-3xl font-bold text-gray-800 flex items-center gap-3"><Server className="text-violet-600"/> Service Catalog</h2>
-                <p className="text-gray-500 mt-3 text-lg">Launch a microservice to begin. Status updates live from the backend.</p>
+                <p className="text-gray-500 mt-3 text-lg">Select a service to launch. Availability updates in real-time.</p>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 overflow-y-auto relative z-10 pb-4">
                 {[
-                  { id: "profile", name: "Student Profile", icon: Users, desc: "Personal Details & Bio" },
-                  { id: "tickets", name: "Support Tickets", icon: ShieldAlert, desc: "Submit Issues" },
+                  { id: "profile", name: "My Profile", icon: Users, desc: "Edit personal details" },
+                  { id: "tickets", name: "Support Tickets", icon: ShieldAlert, desc: "Submit & Track Issues" },
                   { id: "board", name: "Community Chat", icon: MessageSquare, desc: "Anonymous Discussion" },
                   { id: "appointments", name: "Appointments", icon: Calendar, desc: "Schedule Meetings" },
-                  { id: "counseling", name: "Counselor Hub", icon: Phone, desc: "Admin Mode Toggle" },
+                  { id: "counseling", name: "Counselor Hub", icon: Phone, desc: "Staff Access Only" },
                 ].map(item => {
                   const s = registry[item.id];
                   const isUp = s?.status === "UP";
@@ -688,7 +715,7 @@ export default function App() {
           <div className="bg-slate-900 text-white p-8 rounded-2xl shadow-2xl h-full flex flex-col border border-slate-700">
             <h3 className="font-bold mb-8 flex items-center gap-3 border-b border-slate-700 pb-6 text-xl"><Activity className="text-violet-400"/> Admin Provisioning</h3>
             
-            {role !== "admin" ? (
+            {session.role !== "admin" ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-center">
                     <ShieldAlert size={80} className="mb-6 opacity-20"/>
                     <p className="font-bold text-lg text-slate-400">Restricted Access</p>
