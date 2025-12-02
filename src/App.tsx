@@ -22,8 +22,7 @@ import {
 } from "lucide-react";
 
 // --- CONFIGURATION ---
-const REGISTRY_API = "https://s0-registry.onrender.com"; 
-
+const REGISTRY_API = "https://s0-registry.onrender.com";
 // --- TYPES ---
 type Role = "student" | "counselor" | "admin";
 type ServiceId = "profile" | "tickets" | "board" | "appointments" | "counseling";
@@ -584,6 +583,12 @@ export default function App() {
   const [registry, setRegistry] = useState<any>({});
   const [counselingMode, setCounselingMode] = useState(false);
   const [toast, setToast] = useState("");
+  const [systemLogs, setSystemLogs] = useState<string[]>([]);
+
+  // Logger Helper
+  const addLog = (msg: string) => {
+    setSystemLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 10)); 
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -599,13 +604,21 @@ export default function App() {
       setSession({ name: newName, role: newRole });
       setActiveId(null); // Return to home on logout
       setToast(`Switched to ${newRole} mode`);
+      addLog(`Role switch: ${newName} (${newRole})`);
       setTimeout(() => setToast(""), 2000);
+  };
+
+  const handleToggleService = async (name: string) => {
+      await api.toggleService(name);
+      addLog(`Admin toggled ${name}`);
   };
 
   const toggleCounseling = async () => {
     const res = await api.callService("counseling", "/toggle", { method: "POST" });
     setCounselingMode(res.active);
-    setToast(res.active ? "You are now ONLINE" : "You are now OFFLINE");
+    const status = res.active ? "ONLINE" : "OFFLINE";
+    setToast(`You are now ${status}`);
+    addLog(`Counseling Mode set to ${status}`);
     setTimeout(() => setToast(""), 3000);
   };
 
@@ -656,11 +669,11 @@ export default function App() {
         <div className="lg:col-span-8 h-[700px]">
           {activeId ? (
             <>
-              {activeId === "profile" && <ServiceProfile session={session} setSession={setSession} onClose={() => setActiveId(null)} />}
-              {activeId === "tickets" && <ServiceTickets session={session} counselingMode={counselingMode} onClose={() => setActiveId(null)} />}
-              {activeId === "board" && <ServiceBoard session={session} onClose={() => setActiveId(null)} />}
-              {activeId === "appointments" && <ServiceAppointments session={session} onClose={() => setActiveId(null)} />}
-              {activeId === "counseling" && <ServiceCounseling session={session} isActive={counselingMode} onToggle={toggleCounseling} onClose={() => setActiveId(null)} />}
+              {activeId === "profile" && <ServiceProfile session={session} setSession={setSession} onClose={() => { setActiveId(null); addLog(`${session.name} closed Profile`); }} />}
+              {activeId === "tickets" && <ServiceTickets session={session} counselingMode={counselingMode} onClose={() => { setActiveId(null); addLog(`${session.name} closed Tickets`); }} />}
+              {activeId === "board" && <ServiceBoard session={session} onClose={() => { setActiveId(null); addLog(`${session.name} closed Board`); }} />}
+              {activeId === "appointments" && <ServiceAppointments session={session} onClose={() => { setActiveId(null); addLog(`${session.name} closed Appointments`); }} />}
+              {activeId === "counseling" && <ServiceCounseling session={session} isActive={counselingMode} onToggle={toggleCounseling} onClose={() => { setActiveId(null); addLog(`${session.name} closed Counseling`); }} />}
             </>
           ) : (
             // REGISTRY VIEW
@@ -697,7 +710,7 @@ export default function App() {
                       
                       <button 
                         disabled={!isUp} 
-                        onClick={() => setActiveId(item.id as ServiceId)}
+                        onClick={() => { setActiveId(item.id as ServiceId); addLog(`${session.name} opened ${item.name}`); }}
                         className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${isUp ? "bg-violet-900 text-white hover:bg-violet-800 shadow-md" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
                       >
                         {isUp ? "Launch" : "Unavailable"} {isUp && <Activity size={16}/>}
@@ -731,7 +744,7 @@ export default function App() {
                     <div key={name} className="flex justify-between items-center bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-violet-500/50 transition-all group">
                       <span className="capitalize font-medium text-slate-200 group-hover:text-white transition-colors">{name}</span>
                       <button 
-                        onClick={() => api.toggleService(name)}
+                        onClick={() => handleToggleService(name)}
                         className={`w-28 py-2 rounded-lg text-xs font-bold transition-all shadow-inner border ${registry[name]?.status === "UP" ? "bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20" : "bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20"}`}
                       >
                         {registry[name]?.status || "CONNECTING..."}
@@ -743,17 +756,15 @@ export default function App() {
             
             <div className="mt-auto pt-8 border-t border-slate-700">
                 <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Live System Logs</h4>
-                <div className="h-48 bg-black/40 rounded-xl p-4 text-[10px] font-mono text-violet-200 overflow-hidden shadow-inner border border-slate-800">
-                    {Object.keys(registry).length > 0 ? (
-                        Object.keys(registry).map(k => (
-                            <div key={k} className="mb-2 truncate opacity-70 hover:opacity-100 transition-opacity flex items-center gap-2">
-                              <span className="text-green-400">●</span> [REGISTRY] <span className="text-white">{k}</span> <span className="text-slate-600">→</span> {registry[k].url}
+                <div className="h-48 bg-black/40 rounded-xl p-4 text-[10px] font-mono text-violet-200 overflow-hidden shadow-inner border border-slate-800 overflow-y-auto">
+                    {systemLogs.length === 0 ? (
+                        <div className="text-slate-500 italic text-center mt-10">No activity recorded...</div>
+                    ) : (
+                        systemLogs.map((log, i) => (
+                            <div key={i} className="mb-2 truncate opacity-90 hover:opacity-100 transition-opacity border-b border-slate-800/50 pb-1">
+                              <span className="text-green-400">➜</span> {log}
                             </div>
                         ))
-                    ) : (
-                        <div className="flex items-center gap-2 text-slate-500 animate-pulse h-full justify-center">
-                          <Activity size={16}/> Connecting to S0...
-                        </div>
                     )}
                 </div>
             </div>
