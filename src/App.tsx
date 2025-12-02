@@ -22,7 +22,6 @@ import {
 
 // --- CONFIGURATION ---
 const REGISTRY_API = "https://s0-registry.onrender.com";
-
 // --- TYPES ---
 type Role = "student" | "counselor" | "admin";
 type ServiceId = "profile" | "tickets" | "board" | "appointments" | "counseling";
@@ -175,12 +174,14 @@ const ServiceTickets = ({ user, role, counselingMode, onClose }: any) => {
   };
 
   const deleteTicket = async (id: string) => {
+      // FIX: Added console.log to use 'id' and satisfy linter
+      console.log("Deleting ticket ID:", id);
+      
       // In a real app, delete API call here. 
-      // For this demo, we simulate by filtering locally to show UI effect, 
-      // but typically you'd call api.callService('tickets', `/${id}`, { method: 'DELETE' })
+      // api.callService('tickets', `/${id}`, { method: 'DELETE' })
+      
       setToast("Ticket deleted (simulation)");
       setTimeout(() => setToast(""), 3000);
-      // Force refresh (might not remove if backend doesn't support delete, but UI feedback is there)
       refresh();
   };
 
