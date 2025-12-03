@@ -19,7 +19,8 @@ import {
   Trash2,
   Lock,
   UserCheck,
-  ExternalLink
+  ExternalLink,
+  Zap 
 } from "lucide-react";
 
 // --- CONFIGURATION ---
@@ -206,13 +207,19 @@ const ServiceTickets = ({ session, counselingMode, onClose }: { session: UserSes
   };
 
   const deleteTicket = async (id: string) => {
-      // FIX: Ensure 'id' is used to pass Linter
-      console.log("Deleting ticket ID:", id); 
-      
-      // Optimistic update
+      // 1
       setTickets(prev => prev.filter(t => t.id !== id));
       
-      setToast("Ticket deleted.");
+      try {
+        // 2
+        await api.callService("tickets", `/tickets/${id}`, { method: "DELETE" });
+        setToast("Ticket permanently deleted.");
+      } catch (e) {
+        console.error("Delete failed on server", e);
+        setToast("Failed to delete on server. Refreshing...");
+        refresh(); // Put it back if the server failed
+      }
+
       setTimeout(() => setToast(""), 3000);
   };
 
@@ -418,6 +425,7 @@ const ServiceAppointments = ({ session, onClose }: { session: UserSession, onClo
   const saveSlot = async (slot: string) => {
     await api.callService("appointments", "/appointments", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ticketId: selId, studentSlot: slot, hasVisited: true })
     });
     setRefreshKey(k => k + 1);
@@ -444,12 +452,12 @@ const ServiceAppointments = ({ session, onClose }: { session: UserSession, onClo
     );
     if (isPickedUp && hasSlot) return (
        <div className="bg-gradient-to-b from-green-50 to-white p-10 rounded-2xl border border-green-200 text-center shadow-sm">
-          <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><CheckCircle size={40}/></div>
-          <h4 className="font-bold text-green-800 text-2xl mb-2">Confirmed!</h4>
-          <p className="text-green-700 text-lg mb-6">Matched with <b>{t.counselorName}</b> at:</p>
-          <div className="bg-white px-8 py-4 border border-green-200 rounded-xl font-mono text-xl font-bold text-green-700 shadow-sm inline-block">
-            {appt.studentSlot}
-          </div>
+         <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><CheckCircle size={40}/></div>
+         <h4 className="font-bold text-green-800 text-2xl mb-2">Confirmed!</h4>
+         <p className="text-green-700 text-lg mb-6">Matched with <b>{t.counselorName}</b> at:</p>
+         <div className="bg-white px-8 py-4 border border-green-200 rounded-xl font-mono text-xl font-bold text-green-700 shadow-sm inline-block">
+           {appt.studentSlot}
+         </div>
        </div>
     );
     if (isPickedUp && !hasSlot) return (
@@ -615,6 +623,8 @@ export default function App() {
           }
         });
       }
+      // CLEAR TOAST AFTER 4 SECONDS so it doesn't get stuck
+      setTimeout(() => setToast(""), 4000);
     };
     wakeUp();
   }, []);
@@ -746,18 +756,23 @@ export default function App() {
                             {isUp ? "Launch" : "Unavailable"} {isUp && <Activity size={16}/>}
                         </button>
                         
-                        {/* WAKE UP BUTTON - Directly opens the URL in new tab */}
+                        {/* WAKE UP BUTTON WITH TOOLTIP */}
                         {isUp && s?.url && (
-                            <a 
-                                href={s.url} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                title="Wake Up Service (Direct Link)"
-                                className="px-3 py-3 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
-                                onClick={() => addLog(`Waking up ${item.name}`)}
-                            >
-                                <ExternalLink size={18}/>
-                            </a>
+                           <div className="relative group/tooltip">
+                                <a 
+                                    href={s.url} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    onClick={() => addLog(`Waking up ${item.name}`)}
+                                    className="px-3 py-3 h-full rounded-xl bg-violet-50 text-violet-600 hover:bg-violet-100 hover:text-violet-800 transition-colors flex items-center justify-center border border-violet-100"
+                                >
+                                    <Zap size={18} className="fill-current"/>
+                                </a>
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 bg-gray-900 text-white text-[10px] p-2 rounded-lg shadow-xl opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none text-center">
+                                    Wake Up Service (Fixes Cold Starts)
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                                </div>
+                           </div>
                         )}
                       </div>
                     </div>
