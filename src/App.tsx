@@ -18,11 +18,12 @@ import {
   GraduationCap,
   Trash2,
   Lock,
-  UserCheck
+  UserCheck,
+  ExternalLink
 } from "lucide-react";
 
 // --- CONFIGURATION ---
-const REGISTRY_API = "https://s0-registry.onrender.com"; 
+const REGISTRY_API = "https://s0-registry.onrender.com";
 
 // --- TYPES ---
 type Role = "student" | "counselor" | "admin";
@@ -570,7 +571,6 @@ const ServiceCounseling = ({ session, isActive, onToggle, onClose }: { session: 
           >
             <Power size={48} className={`transition-all duration-300 ${isActive ? "text-white" : "text-gray-400"}`}/>
           </button>
-          
           <div className={`inline-block px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest transition-colors ${isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
             {isActive ? "System Online" : "System Offline"}
           </div>
@@ -606,6 +606,7 @@ export default function App() {
           const s = reg[key];
           if (s && s.url) {
              console.log(`Pinging ${key} at ${s.url}...`);
+             // Use no-cors mode to ping without crashing
              fetch(s.url, { mode: 'no-cors' }).catch(() => {}); 
           }
         });
@@ -732,13 +733,29 @@ export default function App() {
                       <h3 className="font-bold text-gray-800 text-xl mb-1">{item.name}</h3>
                       <p className="text-gray-500 text-sm mb-6">{item.desc}</p>
                       
-                      <button 
-                        disabled={!isUp} 
-                        onClick={() => { setActiveId(item.id as ServiceId); addLog(`${session.name} opened ${item.name}`); }}
-                        className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${isUp ? "bg-violet-900 text-white hover:bg-violet-800 shadow-md" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
-                      >
-                        {isUp ? "Launch" : "Unavailable"} {isUp && <Activity size={16}/>}
-                      </button>
+                      <div className="flex gap-2">
+                        <button 
+                            disabled={!isUp} 
+                            onClick={() => { setActiveId(item.id as ServiceId); addLog(`${session.name} opened ${item.name}`); }}
+                            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${isUp ? "bg-violet-900 text-white hover:bg-violet-800 shadow-md" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+                        >
+                            {isUp ? "Launch" : "Unavailable"} {isUp && <Activity size={16}/>}
+                        </button>
+                        
+                        {/* WAKE UP BUTTON - Directly opens the URL in new tab */}
+                        {isUp && s?.url && (
+                            <a 
+                                href={s.url} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                title="Wake Up Service (Direct Link)"
+                                className="px-3 py-3 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
+                                onClick={() => addLog(`Waking up ${item.name}`)}
+                            >
+                                <ExternalLink size={18}/>
+                            </a>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
