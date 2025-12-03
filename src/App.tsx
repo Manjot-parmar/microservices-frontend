@@ -19,7 +19,6 @@ import {
   Trash2,
   Lock,
   UserCheck,
-  ExternalLink,
   Zap 
 } from "lucide-react";
 
@@ -835,3 +834,4 @@ export default function App() {
     </div>
   );
 }
+
