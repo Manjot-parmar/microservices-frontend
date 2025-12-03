@@ -39,11 +39,15 @@ interface UserSession {
 // --- API LAYER ---
 const api = {
   discover: async () => {
+    if (REGISTRY_API.includes("REPLACE")) {
+        console.error("⚠️ MISSING REGISTRY URL: Please edit src/App.tsx line 24");
+        return {};
+    }
     try {
       const res = await fetch(`${REGISTRY_API}/discover`);
       return await res.json();
     } catch (e) { 
-      console.error("Registry down", e); return {}; 
+      console.error("Registry down or sleeping", e); return {}; 
     }
   },
   toggleService: async (name: string) => {
@@ -627,7 +631,7 @@ export default function App() {
   const handleRoleSwitch = (newRole: Role) => {
       const newName = newRole === 'student' ? "Student A" : newRole === 'counselor' ? "Counselor Mike" : "Admin User";
       setSession({ name: newName, role: newRole });
-      setActiveId(null); // Return to home on logout
+      setActiveId(null); 
       setToast(`Switched to ${newRole} mode`);
       addLog(`Role switch: ${newName} (${newRole})`);
       setTimeout(() => setToast(""), 2000);
